@@ -156,9 +156,10 @@ export async function startDaemon({
   const channelKey = (thread, workspace = false) => scopedKey(token, workspace ? `workspace:${thread}` : `channel:${thread}:${pins.owner(thread)}`);
   const panelMeta = (thread) => ({ panelUrl: panelUrl(thread), channel: { thread, key: channelKey(thread) } });
   const workspaceMeta = thread => ({ workspace: true, panelUrl: `${origin()}/t/${encodeURIComponent(thread)}?workspace=1&k=${channelKey(thread, true)}`, channel: { thread, key: channelKey(thread, true), workspace: true } });
+  // `viewing` lets hosts without an embedded panel avoid opening a second browser view.
   const panelResult = (threadId, text, structuredContent) => ({
     text, structuredContent,
-    meta: { panel: workspaceMeta(threadId), ...panelMetadata(threadId) },
+    meta: { panel: { ...workspaceMeta(threadId), viewing: (workspaceViewers.get(threadId)?.size ?? 0) > 0 }, ...panelMetadata(threadId) },
   });
   const captureMeta = (thread, capture) => ({ capture: { downloadUrl: `${origin()}/captures/${encodeURIComponent(thread)}/${capture.id}?k=${scopedKey(token, `capture:${thread}:${capture.id}`)}` } });
   /** @type {Map<string, {thread: string, viewer: BridgeViewer}>} */
@@ -574,7 +575,8 @@ export async function startDaemon({
     },
 
     async settings_read() {
-      return { text: '', structuredContent: settings.describe(await leases.avds()) };
+      // Settings stay readable before the Android SDK is installed; only the device list is empty.
+      return { text: '', structuredContent: settings.describe(await leases.avds().catch(() => [])) };
     },
 
     async settings_update(_threadId, { set }) {
@@ -1285,6 +1287,7 @@ export async function startDaemon({
     });
   }
 
+  let sweepNow;
   const STATIC = {
     '/static/app.js': ['app.js', 'text/javascript'],
     '/static/app.css': ['app.css', 'text/css'],
@@ -1366,6 +1369,13 @@ export async function startDaemon({
       }
     }
 
+    // Hosts that learn about ended sessions can ask for cleanup without waiting for the next interval.
+    if (req.method === 'POST' && url.pathname === '/api/sweep') {
+      sendJson(res, 200, { ok: true });
+      setImmediate(() => sweepNow?.());
+      return undefined;
+    }
+
     if (req.method === 'POST' && url.pathname === '/api/shutdown') {
       sendJson(res, 200, { ok: true });
       log('shutdown requested');
@@ -1426,9 +1436,11 @@ export async function startDaemon({
     }
   }, 5_000).unref();
 
-  const leaseSweep = setInterval(() => {
-    leases.sweep({ isBusy: threadId => activeOperations.has(threadId), idleMs: settings.get('idleMinutes') * 60_000, isWatched: (threadId) => (viewers.get(threadId)?.size ?? 0) > 0 }).catch((error) => log(`sweep failed: ${error.message}`));
-  }, SWEEP_INTERVAL_MS).unref();
+  function sweepLeases() {
+    return leases.sweep({ isBusy: threadId => activeOperations.has(threadId), idleMs: settings.get('idleMinutes') * 60_000, keepEnded: settings.get('keepRunningAfterSessionEnd'), isWatched: (threadId) => (viewers.get(threadId)?.size ?? 0) > 0 }).catch((error) => log(`sweep failed: ${error.message}`));
+  }
+  sweepNow = sweepLeases;
+  const leaseSweep = setInterval(sweepLeases, SWEEP_INTERVAL_MS).unref();
 
   const stopAppearance = appearance.subscribe?.(next => {
     if (JSON.stringify(next) === JSON.stringify(theme)) return;

@@ -10,7 +10,7 @@ import { scopedKey } from '../runtime/core/lib/panel-access.mjs';
 import { Captures } from '../runtime/core/lib/captures.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const daemon = path.join(repo, 'runtime/hosts/codex/daemon.mjs');
+const daemon = path.join(repo, 'runtime/hosts/claude/daemon.mjs');
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -132,9 +132,9 @@ if (process.argv[2] === '-list-avds') {
     ANDROID_HOME: sdk,
     ANDROID_USER_HOME: path.join(root, 'android'),
     ANDROID_AVD_HOME: path.join(root, 'android', 'avd'),
-    CODEX_HOME: path.join(root, 'codex'),
-    EMULATOR_FOR_CODEX_STATE_DIR: state,
-    EMULATOR_FOR_CODEX_PORT: String(port),
+    CLAUDE_CONFIG_DIR: path.join(root, 'claude'),
+    ANDROID_EMULATOR_CLAUDE_STATE_DIR: state,
+    ANDROID_EMULATOR_CLAUDE_PORT: String(port),
     HOME: root,
   };
   fs.mkdirSync(state, { recursive: true });
@@ -191,9 +191,10 @@ if (process.argv[2] === '-list-avds') {
   const metaA = (await api(port, token, 'thread-a', 'emulator_panel')).result.meta;
   const metaB = (await api(port, token, 'thread-b', 'emulator_panel')).result.meta;
   const reopenedA = (await api(port, token, 'thread-a', 'emulator_panel')).result.meta;
-  assert.ok(metaA['openai/widgetSessionId']);
-  assert.equal(reopenedA['openai/widgetSessionId'], metaA['openai/widgetSessionId']);
-  assert.notEqual(metaA['openai/widgetSessionId'], metaB['openai/widgetSessionId']);
+  assert.ok(metaA.panel.panelUrl);
+  assert.equal(reopenedA.panel.panelUrl, metaA.panel.panelUrl);
+  assert.notEqual(metaA.panel.panelUrl, metaB.panel.panelUrl);
+  assert.equal(metaA.panel.viewing, false);
   const panelA = metaA.panel;
   const panelB = metaB.panel;
   const manager = (await api(port, token, 'thread-a', 'emulator_manager')).result.meta.panel;

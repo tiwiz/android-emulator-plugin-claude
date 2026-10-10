@@ -337,7 +337,8 @@ export class LeaseManager extends EventEmitter {
   }
 
   // Stops emulators for archived or deleted threads, deletes their non-kept AVDs, and stops idle emulators.
-  async sweep({ idleMs, isWatched, isBusy = () => false }) {
+  // An `ended` thread is archived unless keepEnded leaves its running emulator to the idle timeout.
+  async sweep({ idleMs, isWatched, isBusy = () => false, keepEnded = false }) {
     const owners = new Set([...Object.keys(this.leases), ...Object.values(this.createdAvds).map(({ threadId }) => threadId)]);
     const states = await this.readSessions(owners);
     for (const threadId of owners) {
@@ -345,7 +346,8 @@ export class LeaseManager extends EventEmitter {
       const lease = this.get(threadId);
       const state = states.get(threadId)?.state;
       const age = lease ? Date.now() - Date.parse(lease.startedAt) : Infinity;
-      const ended = state === 'archived' || (state === 'missing' && age > MISSING_GRACE_MS);
+      const kept = keepEnded && lease?.kind !== 'physical' && ['booting', 'ready'].includes(lease?.state);
+      const ended = state === 'archived' || (state === 'ended' && !kept) || (state === 'missing' && age > MISSING_GRACE_MS);
       if (ended) {
         this.log(`thread ${threadId} is ${state}; cleaning up`);
         if (lease) await this.stop(threadId);

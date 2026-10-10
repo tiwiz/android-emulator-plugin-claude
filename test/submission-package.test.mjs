@@ -4,13 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import test from 'node:test';
-import { authorManifest, committedBytes, committedFiles, contrast, extractChangelog, semanticVersion, validatePackage } from '../scripts/package-submission.mjs';
+import { committedBytes, committedFiles, extractChangelog, semanticVersion, validatePackage } from '../scripts/package-submission.mjs';
 import { crc32, createZip, inspectZip } from '../scripts/submission-zip.mjs';
-import { TOOLS, TOOL_NAMES } from '../runtime/hosts/codex/tools.mjs';
+import { TOOLS, TOOL_NAMES } from '../runtime/hosts/claude/tools.mjs';
+import { TOOLS as SHARED_TOOLS } from '../runtime/core/tools.mjs';
 
-const plugin = new URL('../plugins/android-emulator-plugin/', import.meta.url);
-const original = JSON.parse(fs.readFileSync(new URL('.codex-plugin/plugin.json', plugin), 'utf8'));
-const metadata = JSON.parse(fs.readFileSync(new URL('../release/submission.json', import.meta.url), 'utf8'));
+const plugin = new URL('../plugins/android-emulator/', import.meta.url);
+const original = JSON.parse(fs.readFileSync(new URL('.claude-plugin/plugin.json', plugin), 'utf8'));
 function packageFiles() {
   const files = new Map();
   function visit(dir, prefix = '') {
@@ -21,48 +21,33 @@ function packageFiles() {
     }
   }
   visit(plugin);
-  files.set('.codex-plugin/plugin.json', { bytes: Buffer.from(JSON.stringify(authorManifest(original, metadata))), mode: 0o100644 });
   files.set('CHANGELOG.md', { bytes: fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url)), mode: 0o100644 });
   return files;
 }
 
-test('author-copy metadata preserves local integration and does not manufacture owner facts', () => {
-  const copy = authorManifest(original, metadata);
-  assert.equal(copy.name, original.name); assert.equal(copy.version, original.version);
-  assert.equal(copy.mcpServers, original.mcpServers); assert.deepEqual(copy.skills, original.skills);
-  assert.equal(copy.interface.websiteURL, original.interface.websiteURL);
-  assert.equal(copy.interface.supportURL, original.interface.supportURL);
-  assert.deepEqual(copy.interface.screenshots, original.interface.screenshots);
-  assert.equal(copy.extensions['com.openai'].onboardingSkill, original.extensions['com.openai'].onboardingSkill);
-  assert.equal(copy.extensions['com.openai'].publication.countries, undefined);
-  assert.equal(copy.extensions['com.openai'].review.commerce, undefined);
-  assert.equal(copy.extensions['com.openai'].review.demo_recording_url, undefined);
-  assert(contrast(copy.interface.brandColor) >= 2);
-  assert(copy.interface.shortDescription.length <= 30);
+test('the installable plugin passes package checks with its session hooks, skills and commands', () => {
   const checked = validatePackage(packageFiles(), original);
   assert.equal(checked.tool_count, TOOLS.length);
   assert.equal(checked.changelog.version, original.version);
   assert(checked.changelog.section.startsWith(`## [${original.version}]\n`));
-  assert.equal(checked.screenshots.length, original.interface.screenshots.length);
-  assert(checked.screenshots.every(image => image.width === 1600 && !image.portal_dimensions_match));
-  for (const test of copy.extensions['com.openai'].review.test_cases.positive) {
-    assert(!test.tools_triggered.split(',').some(name => name.trim().startsWith('emulator_')));
-  }
+  assert.deepEqual(checked.skills.sort(), ['skills/emulator/SKILL.md', 'skills/setup/SKILL.md']);
+  assert.deepEqual(checked.commands.sort(), ['commands/manager.md', 'commands/panel.md', 'commands/settings.md']);
+  assert.equal(checked.icons[0].file, 'assets/logo.svg');
 });
 
-test('package checks reject app bindings in every manifest, escaping paths and mismatched versions', () => {
-  const forbidden = packageFiles(); forbidden.set('.app.json', { bytes: Buffer.from('{}'), mode: 0o100644 });
-  assert.throws(() => validatePackage(forbidden, original), /\.app\.json/);
-  for (const file of ['plugin.json', 'nested/.codex-plugin/plugin.json']) {
-    const files = packageFiles(); files.set(file, { bytes: Buffer.from('{"extensions":{"com.openai":{"apps":"./.app.json"}}}'), mode: 0o100644 });
-    assert.throws(() => validatePackage(files, original), /Forbidden apps/);
-  }
-  const escaping = packageFiles(); const changed = authorManifest(original, metadata);
-  changed.interface.logo = './../secret.svg'; escaping.set('.codex-plugin/plugin.json', { bytes: Buffer.from(JSON.stringify(changed)), mode: 0o100644 });
+test('package checks reject a top-level bin/, escaping paths, unknown hooks and mismatched versions', () => {
+  const withBin = packageFiles(); withBin.set('bin/tool', { bytes: Buffer.from('#!/bin/sh\n'), mode: 0o100755 });
+  assert.throws(() => validatePackage(withBin, original), /bin\//);
+  const escaping = packageFiles(); escaping.set('.claude-plugin/plugin.json', { bytes: Buffer.from(JSON.stringify({ ...original, icon: './../secret.svg' })), mode: 0o100644 });
   assert.throws(() => validatePackage(escaping, original), /Unsafe contained/);
-  const mismatch = packageFiles(); changed.interface.logo = original.interface.logo; changed.version = '0.0.0';
-  mismatch.set('.codex-plugin/plugin.json', { bytes: Buffer.from(JSON.stringify(changed)), mode: 0o100644 });
+  const mismatch = packageFiles(); mismatch.set('.claude-plugin/plugin.json', { bytes: Buffer.from(JSON.stringify({ ...original, version: '0.0.0' })), mode: 0o100644 });
   assert.throws(() => validatePackage(mismatch, original));
+  const hooks = packageFiles(); const config = JSON.parse(hooks.get('hooks/hooks.json').bytes);
+  config.hooks.PreToolUse = config.hooks.SessionStart;
+  hooks.set('hooks/hooks.json', { bytes: Buffer.from(JSON.stringify(config)), mode: 0o100644 });
+  assert.throws(() => validatePackage(hooks, original), /session lifecycle/);
+  const missingLauncher = packageFiles(); missingLauncher.delete('scripts/launch-node');
+  assert.throws(() => validatePackage(missingLauncher, original), /Missing referenced file/);
 });
 
 test('deterministic standard ZIP retains bytes/executable mode and rejects corruption and traversal', () => {
@@ -82,8 +67,10 @@ test('tool hints cover confirmed persistence, downloads and destructive panel me
   const tools = new Map(TOOLS.map(tool => [tool.name, tool]));
   const tool = name => tools.get(TOOL_NAMES[name] ?? name);
   for (const name of ['emulator_screenshot', 'emulator_ui_tree', 'emulator_wait_for', 'emulator_observe']) assert.equal(tool(name).annotations.readOnlyHint, false, name);
-  for (const name of ['emulator_navigate', 'emulator_apk', 'emulator_ui_tree', 'emulator_wait_for', 'emulator_tap', 'emulator_swipe', 'emulator_scroll_to', 'emulator_observe', 'emulator_type', 'emulator_app', 'emulator_key', 'emulator_open', 'emulator_stream']) assert.equal(tool(name).annotations.openWorldHint, true, name);
-  assert.equal(tools.get('emulator_stream').annotations.destructiveHint, true);
+  for (const name of ['emulator_navigate', 'emulator_ui_tree', 'emulator_wait_for', 'emulator_tap', 'emulator_swipe', 'emulator_scroll_to', 'emulator_observe', 'emulator_type', 'emulator_app', 'emulator_key', 'emulator_open']) assert.equal(tool(name).annotations.openWorldHint, true, name);
+  const shared = new Map(SHARED_TOOLS.map(item => [item.name, item]));
+  assert.equal(shared.get('emulator_stream').annotations.destructiveHint, true);
+  assert.equal(shared.get('emulator_apk').annotations.openWorldHint, true);
 });
 
 test('changelog extraction selects one nonempty version entry and normalizes line endings', () => {
@@ -98,15 +85,9 @@ test('changelog extraction selects one nonempty version entry and normalizes lin
   }
 });
 
-test('package checks reject missing changelog and missing or corrupt source screenshots', () => {
+test('package checks reject a missing changelog', () => {
   const missingChangelog = packageFiles(); missingChangelog.delete('CHANGELOG.md');
   assert.throws(() => validatePackage(missingChangelog, original), /Missing packaged CHANGELOG/);
-  const screenshot = original.interface.screenshots[0].slice(2);
-  const missingScreenshot = packageFiles(); missingScreenshot.delete(screenshot);
-  assert.throws(() => validatePackage(missingScreenshot, original), /Missing referenced file/);
-  const corrupt = packageFiles(); const image = corrupt.get(screenshot);
-  image.bytes = Buffer.from(image.bytes); image.bytes[29] ^= 1;
-  assert.throws(() => validatePackage(corrupt, original), /PNG CRC mismatch/);
 });
 
 test('ZIP inspection rejects inconsistent or unsupported local and central headers', () => {

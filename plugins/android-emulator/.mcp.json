@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "emu": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/launch-node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/runtime/hosts/claude/mcp.mjs"]
+    }
+  }
+}

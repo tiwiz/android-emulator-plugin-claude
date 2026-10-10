@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,8 +8,8 @@ import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { startDaemon } from '../runtime/core/daemon.mjs';
-import { HELPER_VERSION } from '../runtime/hosts/codex/config.mjs';
-import { panelMetadata, PANEL_URI, TOOL_NAMES } from '../runtime/hosts/codex/tools.mjs';
+import { HELPER_VERSION } from '../runtime/hosts/claude/config.mjs';
+import { recordSessionStart } from '../runtime/hosts/claude/sessions.mjs';
 
 class Leases extends EventEmitter {
   leases = {};
@@ -25,12 +26,15 @@ class Leases extends EventEmitter {
   }
 }
 
+// The MCP server is a direct child of this test process, which stands in for Claude Code.
+const session = (dir, source = 'startup') => recordSessionStart(dir, { session_id: crypto.randomUUID(), source, cwd: '/project' }, { pid: process.pid }).threadId;
+
 async function fixture(t) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'emulator-startup-panel-')));
   const leases = new Leases();
-  const service = await startDaemon({ dir, helperVersion: HELPER_VERSION, panelMetadata, createLeases: () => leases, log() {} });
-  const child = spawn(process.execPath, [new URL('../runtime/hosts/codex/mcp.mjs', import.meta.url).pathname], {
-    env: { ...process.env, EMULATOR_FOR_CODEX_STATE_DIR: dir }, stdio: ['pipe', 'pipe', 'pipe'],
+  const service = await startDaemon({ dir, helperVersion: HELPER_VERSION, createLeases: () => leases, log() {} });
+  const child = spawn(process.execPath, [new URL('../runtime/hosts/claude/mcp.mjs', import.meta.url).pathname], {
+    env: { ...process.env, ANDROID_EMULATOR_CLAUDE_STATE_DIR: dir, CLAUDE_CODE_REMOTE: 'true' }, stdio: ['pipe', 'pipe', 'pipe'],
   });
   const pending = new Map();
   let id = 0;
@@ -51,61 +55,63 @@ async function fixture(t) {
     pending.set(++id, resolve);
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
   });
-  return { leases, request, call: (threadId, name, args = {}) => request('tools/call', { name, arguments: args, _meta: { threadId } }) };
+  return { dir, leases, request, call: (name, args = {}) => request('tools/call', { name, arguments: args }) };
 }
 
-test('startup returns a loadable panel through MCP and reuses the chat panel identity', { timeout: 10_000 }, async t => {
-  const { call, request } = await fixture(t);
-  const first = await call('A', 'start_emulator');
-  assert.equal(first.isError, undefined);
-  assert.equal(first.structuredContent.emulator.serial, 'owned-A');
-  assert.equal(first._meta.ui.resourceUri, PANEL_URI);
-  assert.equal(first._meta['openai/widgetSessionId'], 'android-emulator:A');
-  assert.equal(first._meta.panel.channel.thread, 'A');
-  assert.ok(first._meta.panel.channel.key);
-  const visible = JSON.stringify({ content: first.content, structuredContent: first.structuredContent });
-  assert.ok(!visible.includes(first._meta.panel.channel.key));
-  assert.doesNotMatch(visible, /127\.0\.0\.1|panelUrl/);
+const panelUrl = result => result.content[0].text.match(/http:\/\/127\.0\.0\.1:\d+\/t\/\S+/)?.[0];
 
-  const resource = await request('resources/read', { uri: first._meta.ui.resourceUri });
-  assert.equal(resource.contents[0].mimeType, 'text/html;profile=mcp-app');
-  assert.match(resource.contents[0].text, /data-view="device"/);
-  const names = resource.contents[0].text.match(/<script type="application\/json" id="codex-tool-names">(.*?)<\/script>/);
-  assert.ok(names, 'The panel receives the host tool names before its scripts run.');
-  assert.deepEqual(JSON.parse(names[1]), TOOL_NAMES);
-  assert.deepEqual((await call('A', 'start_emulator'))._meta, first._meta);
-  assert.deepEqual((await call('A', 'show_device_panel'))._meta, first._meta);
-  const other = await call('B', 'start_emulator');
-  assert.notEqual(other._meta['openai/widgetSessionId'], first._meta['openai/widgetSessionId']);
-  assert.notEqual(other._meta.panel.channel.key, first._meta.panel.channel.key);
+test('startup returns the session panel URL and reuses it for the same session', { timeout: 10_000 }, async t => {
+  const { dir, call } = await fixture(t);
+  const thread = session(dir);
+  const first = await call('start_emulator');
+  assert.equal(first.isError, undefined);
+  assert.equal(first.structuredContent.emulator.serial, `owned-${thread}`);
+  assert.equal(first._meta, undefined, 'Claude Code receives no host panel metadata');
+  const url = new URL(panelUrl(first));
+  assert.equal(url.pathname, `/t/${thread}`);
+  assert.equal(url.searchParams.get('workspace'), '1');
+  assert.match(first.content[0].text, /Device panel: /);
+  const page = await fetch(url);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /data-view="device"/);
+  assert.equal(panelUrl(await call('start_emulator')), url.href);
+  assert.equal(panelUrl(await call('show_device_panel')), url.href);
+  const other = session(dir, 'resume');
+  const next = await call('start_emulator');
+  assert.equal(new URL(panelUrl(next)).pathname, `/t/${other}`);
+  assert.notEqual(new URL(panelUrl(next)).searchParams.get('k'), url.searchParams.get('k'));
 });
 
-test('create opens the same panel only when it starts the device', { timeout: 10_000 }, async t => {
-  const { call, leases } = await fixture(t);
-  const saved = await call('A', 'create_emulator', { name: 'Saved', start: false });
-  assert.equal(saved._meta, undefined);
+test('create returns the panel only when it starts the device', { timeout: 10_000 }, async t => {
+  const { dir, call, leases } = await fixture(t);
+  session(dir);
+  const saved = await call('create_emulator', { name: 'Saved', start: false });
+  assert.equal(panelUrl(saved), undefined);
   assert.equal(leases.starts.length, 0);
-  const started = await call('A', 'create_emulator', { name: 'New' });
+  const started = await call('create_emulator', { name: 'New' });
   assert.equal(started.structuredContent.emulator.avd, 'New');
   assert.match(started.structuredContent.created, /Created New/);
-  assert.deepEqual(started._meta, (await call('A', 'show_device_panel'))._meta);
+  assert.equal(panelUrl(started), panelUrl(await call('show_device_panel')));
   assert.deepEqual(leases.starts, [{ avd: 'New' }]);
 });
 
-test('failed startup, missing chat context, and tool discovery never request an extra panel', { timeout: 10_000 }, async t => {
-  const { call, request } = await fixture(t);
+test('failed startup never returns a panel; tools carry no host UI metadata', { timeout: 10_000 }, async t => {
+  const { dir, call, request } = await fixture(t);
+  session(dir);
   for (const name of ['start_emulator', 'create_emulator']) {
-    const failed = await call('A', name, { avd: 'Broken', name: 'Broken' });
+    const failed = await call(name, { avd: 'Broken', name: 'Broken' });
     assert.equal(failed.isError, true);
-    assert.equal(failed._meta, undefined);
+    assert.equal(panelUrl(failed), undefined);
     assert.match(failed.content[0].text, /could not boot/);
-    const missing = await request('tools/call', { name });
-    assert.equal(missing.structuredContent.error.code, 'AE_THREAD_REQUIRED');
-    assert.equal(missing._meta, undefined);
   }
   const { tools } = await request('tools/list');
-  for (const name of ['start_emulator', 'create_emulator']) {
-    assert.equal(tools.find(tool => tool.name === name)._meta?.ui?.resourceUri, undefined);
-  }
-  assert.deepEqual(tools.filter(tool => tool._meta?.['openai/ui']?.entrypoints?.some(e => e.type === 'thread')).map(tool => tool.name), ['show_device_panel']);
+  assert.deepEqual(tools.filter(tool => tool._meta).map(tool => tool.name), []);
+  for (const name of ['emulator_stream', 'emulator_apk', 'emulator_mentions']) assert.ok(!tools.some(tool => tool.name === name));
+});
+
+test('without a recorded session the server registers its own and keeps using it', { timeout: 10_000 }, async t => {
+  const { call } = await fixture(t);
+  const first = new URL(panelUrl(await call('show_device_panel'))).pathname;
+  assert.match(first, /^\/t\/[0-9a-f-]{36}$/);
+  assert.equal(new URL(panelUrl(await call('show_device_panel'))).pathname, first);
 });

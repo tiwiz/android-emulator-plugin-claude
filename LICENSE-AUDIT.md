@@ -1,5 +1,16 @@
 # Release license audit
 
+## 2026.10.10: Claude Code port
+
+This section supersedes the statements below wherever they differ. Everything after it is the retained 2026.10.9 evidence for the upstream Codex plugin, kept as history.
+
+- **Host integration.** `runtime/hosts/codex/` (including Codex log parsing, `config.toml` theme reading and SQLite thread lookup) was removed and replaced by `runtime/hosts/claude/`. The new host reads only its own session registry, the Claude Code transcript's first prompt for a title, and the `theme` value in `~/.claude.json`. No third-party code was added or copied; no new download, binary or dependency was introduced.
+- **Installable plugin.** The bundle moved to `plugins/android-emulator/`, with `.claude-plugin/plugin.json`, `.mcp.json`, `hooks/hooks.json` (SessionStart/SessionEnd only), `commands/`, `skills/` and `scripts/launch-node` (Node.js from PATH; nothing bundled). `scripts/build-plugin.mjs` still copies `runtime/` and the root LICENSE and NOTICE into the plugin. The marketplace file is `.claude-plugin/marketplace.json`.
+- **Screenshots.** The three PNGs under `assets/screenshots/` depicted Codex and are no longer part of the source or the installable plugin. The screenshot rows, hashes and OpenAI brand analysis below apply only to the historical 2026.10.9 artifact.
+- **Unchanged inventory.** The scrcpy server 5.0.1 payload and its notices, the Kotlin and Minimap notices, the Lucide icon and the Android robot artwork (logos, tool icon, APK panel SVG) are unchanged, with the same hashes and attribution. Managed downloads of Minimap and Google's Android CLI behave as described below.
+- **Attribution.** NOTICE now identifies this as a modified version of Matt McKenna's plugin, credits the Claude Code integration, and states that the plugin is not made or endorsed by Google, OpenAI or Anthropic. The Apache-2.0 license is unchanged.
+- **Release scope.** The 2026.10.10 package is for marketplace or ZIP installation in Claude Code. OpenAI Registry and Anthropic directory submissions are out of scope; no agreement was accepted and no publication is claimed here.
+
 Updated on 2026-10-09 for release `2026.10.9`, reconciling upstream main `75bfbeb927feb2c0c98a134fbc30c303f4b5f916` with the prepared submission branch at `616bbf30b0e054ec2e931a13277d4810e850fae5`. The original dependency and binary inspections below were performed on 2026-10-08; their dates and immutable evidence are retained. This is an engineering inventory and compliance review, not a legal guarantee. The project's existing Apache-2.0 license is retained; third-party code and artwork retain their own terms.
 
 ## Distribution scope

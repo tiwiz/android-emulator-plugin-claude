@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Exact plugin manifest version, such as 2026.10.9
+        description: Exact plugin manifest version, such as 2026.10.10
         required: true
         type: string
       tag:
@@ -55,8 +55,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f "dist/android-emulator-plugin-${VERSION}.zip"
-          test -f "dist/android-emulator-plugin-${VERSION}.zip.sha256"
+          test -f "dist/android-emulator-${VERSION}.zip"
+          test -f "dist/android-emulator-${VERSION}.zip.sha256"
           test -f dist/submission-report.json
           test -f dist/RELEASE-NOTES.md
           printf 'commit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -64,10 +64,10 @@ jobs:
         id: upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: android-emulator-plugin-${{ inputs.version }}
+          name: android-emulator-${{ inputs.version }}
           path: |
-            dist/android-emulator-plugin-${{ inputs.version }}.zip
-            dist/android-emulator-plugin-${{ inputs.version }}.zip.sha256
+            dist/android-emulator-${{ inputs.version }}.zip
+            dist/android-emulator-${{ inputs.version }}.zip.sha256
             dist/submission-report.json
             dist/RELEASE-NOTES.md
           if-no-files-found: error
@@ -107,15 +107,15 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           test "$(git rev-parse --verify "refs/tags/$TAG^{commit}")" = "$SOURCE_COMMIT"
           jq --exit-status --arg version "$VERSION" --arg tag "$TAG" --arg commit "$SOURCE_COMMIT" \
-            '.package_status == "local_checks_passed" and .source.clean == true and .source.version == $version and .source.tag == $tag and .source.commit == $commit and .archive.file_name == ("android-emulator-plugin-" + $version + ".zip") and .changelog.version == $version and .changelog.file_name == "CHANGELOG.md"' \
+            '.package_status == "local_checks_passed" and .source.clean == true and .source.version == $version and .source.tag == $tag and .source.commit == $commit and .archive.file_name == ("android-emulator-" + $version + ".zip") and .changelog.version == $version and .changelog.file_name == "CHANGELOG.md"' \
             dist/submission-report.json
-          test "$(sha256sum "dist/android-emulator-plugin-${VERSION}.zip" | cut -d ' ' -f 1)" = "$(jq --raw-output '.archive.sha256' dist/submission-report.json)"
+          test "$(sha256sum "dist/android-emulator-${VERSION}.zip" | cut -d ' ' -f 1)" = "$(jq --raw-output '.archive.sha256' dist/submission-report.json)"
           jq --join-output --raw-output '.changelog.section' dist/submission-report.json > "$RUNNER_TEMP/reported-release-notes.md"
           cmp dist/RELEASE-NOTES.md "$RUNNER_TEMP/reported-release-notes.md"
           test "$(sha256sum dist/RELEASE-NOTES.md | cut -d ' ' -f 1)" = "$(jq --raw-output '.changelog.section_sha256' dist/submission-report.json)"
           test "$(git show HEAD:CHANGELOG.md | sha256sum | cut -d ' ' -f 1)" = "$(jq --raw-output '.changelog.sha256' dist/submission-report.json)"
           cd dist
-          sha256sum --check "android-emulator-plugin-${VERSION}.zip.sha256"
+          sha256sum --check "android-emulator-${VERSION}.zip.sha256"
       - name: Reject an existing draft or published release
         shell: bash
         run: |
@@ -134,7 +134,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          archive="dist/android-emulator-plugin-${VERSION}.zip"
+          archive="dist/android-emulator-${VERSION}.zip"
           gh release create "$TAG" "$archive" "$archive.sha256" dist/submission-report.json \
             --repo "$GITHUB_REPOSITORY" --verify-tag --draft --latest=false \
             --title "Android Emulators $VERSION" --notes-file dist/RELEASE-NOTES.md

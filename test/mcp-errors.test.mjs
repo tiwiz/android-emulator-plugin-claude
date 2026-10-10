@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -7,11 +8,16 @@ import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import test from 'node:test';
 import { errorDetails, diagnosticError } from '../runtime/core/lib/errors.mjs';
-import { HELPER_VERSION } from '../runtime/hosts/codex/config.mjs';
+import { HELPER_VERSION } from '../runtime/hosts/claude/config.mjs';
+import { recordSessionStart } from '../runtime/hosts/claude/sessions.mjs';
+
+const THREAD = '6f1c2f39-6a55-4a43-9d36-1d7c8b3e2a10';
+// The MCP server is a direct child of this test process, which stands in for Claude Code.
+const bind = state => recordSessionStart(state, { session_id: THREAD, source: 'startup', cwd: '/project' }, { pid: process.pid });
 
 function client(t, state) {
-  const child = spawn(process.execPath, [new URL('../runtime/hosts/codex/mcp.mjs', import.meta.url).pathname], {
-    env: { ...process.env, EMULATOR_FOR_CODEX_STATE_DIR: state }, stdio: ['pipe', 'pipe', 'pipe'],
+  const child = spawn(process.execPath, [new URL('../runtime/hosts/claude/mcp.mjs', import.meta.url).pathname], {
+    env: { ...process.env, ANDROID_EMULATOR_CLAUDE_STATE_DIR: state, CLAUDE_CODE_REMOTE: 'true' }, stdio: ['pipe', 'pipe', 'pipe'],
   });
   let id = 0;
   const pending = new Map();
@@ -33,23 +39,14 @@ function client(t, state) {
   });
 }
 
-test('panel resources load without starting a helper; missing chat/files have stable codes', { timeout: 5000 }, async (t) => {
+test('Claude Code gets no UI resources, and listing never starts a helper', { timeout: 5000 }, async (t) => {
   const state = fs.mkdtempSync(path.join(os.tmpdir(), 'emulator-error-resource-'));
+  bind(state);
   const request = client(t, state);
-  const uri = 'ui://android-emulator-plugin/panel.html';
-  const resource = await request('resources/read', { uri });
-  assert.equal(resource.result.contents[0].mimeType, 'text/html;profile=mcp-app');
-  assert.match(resource.result.contents[0].text, /AE_PANEL_INIT/);
-  assert.equal(fs.existsSync(path.join(state, 'daemon.json')), false, 'HTML loading cannot depend on helper health');
-  const missingThread = (await request('tools/call', { name: 'show_device_panel' })).result;
-  assert.equal(missingThread.structuredContent.error.code, 'AE_THREAD_REQUIRED');
-  assert.equal(missingThread.isError, true);
-  assert.match(missingThread.content[0].text, /AE_THREAD_REQUIRED/);
-  const runtime = fs.readdirSync(path.join(state, 'runtimes'))[0];
-  fs.unlinkSync(path.join(state, 'runtimes', runtime, 'core', 'web', 'app.js'));
-  const missingFiles = await request('resources/read', { uri });
-  assert.equal(missingFiles.error.code, -32603, 'preserve JSON-RPC numeric error contract');
-  assert.equal(missingFiles.error.data.code, 'AE_RESOURCE_LOAD');
+  assert.deepEqual((await request('resources/list')).result.resources, []);
+  assert.equal((await request('resources/read', { uri: 'ui://android-emulator-plugin/panel.html' })).error.code, -32602);
+  assert.equal(fs.existsSync(path.join(state, 'daemon.json')), false, 'Listing cannot start a helper');
+  assert.ok(fs.readdirSync(path.join(state, 'runtimes')).length, 'The runtime is retained before any call');
 });
 
 test('lost helper reply has a diagnostic code and never replays the action', { timeout: 5000 }, async (t) => {
@@ -64,8 +61,9 @@ test('lost helper reply has a diagnostic code and never replays the action', { t
   t.after(() => new Promise(resolve => server.close(resolve)));
   fs.writeFileSync(path.join(state, 'daemon.json'), JSON.stringify({ pid: process.pid, port: server.address().port }));
   fs.writeFileSync(path.join(state, 'token'), 'test-token-never-in-errors');
+  bind(state);
   const request = client(t, state);
-  const response = await request('tools/call', { name: 'check_device_status', _meta: { threadId: 'test-thread' } });
+  const response = await request('tools/call', { name: 'check_device_status' });
   assert.equal(response.result.structuredContent.error.code, 'AE_HELPER_CONNECT');
   assert.equal(calls, 1);
   assert.doesNotMatch(JSON.stringify(response), /test-token|127\.0\.0\.1/);
@@ -81,14 +79,15 @@ test('public diagnostic metadata never includes arbitrary exception or argument 
 test('agent diagnostics work without a helper or chat identity and preserve saved leases', { timeout: 5000 }, async (t) => {
   const state = fs.mkdtempSync(path.join(os.tmpdir(), 'emulator-diagnostics-mcp-'));
   const saved = JSON.stringify({ leases: {
-    'test-thread': { serial: 'emulator-5602', state: 'ready', pid: process.pid, secret: 'private-owned-field' },
+    [THREAD]: { serial: 'emulator-5602', state: 'ready', pid: process.pid, secret: 'private-owned-field' },
     'other-thread': { serial: 'emulator-5698', state: 'ready', secret: 'private-other-field' },
   } });
   fs.writeFileSync(path.join(state, 'leases.json'), saved);
+  bind(state);
   const request = client(t, state);
   const listing = await request('tools/list');
   assert.equal(listing.result.tools.find(tool => tool.name === 'diagnose_device_issues').annotations.readOnlyHint, true);
-  const result = (await request('tools/call', { name: 'diagnose_device_issues', _meta: { threadId: 'test-thread' } })).result;
+  const result = (await request('tools/call', { name: 'diagnose_device_issues' })).result;
   assert.equal(result.isError, undefined);
   assert.equal(result.structuredContent.helper.status, 'not_found');
   assert.equal(result.structuredContent.device.serial, 'emulator-5602');
@@ -96,11 +95,13 @@ test('agent diagnostics work without a helper or chat identity and preserve save
   assert.equal(result.structuredContent.device.processRunning, true);
   assert.equal(result.structuredContent.display, null);
   assert.doesNotMatch(JSON.stringify(result), /private-|other-thread|emulator-5698/);
-  const missing = (await request('tools/call', { name: 'diagnose_device_issues' })).result;
-  assert.equal(missing.structuredContent.chatBound, false);
-  assert.equal(missing.structuredContent.device.source, 'unavailable');
-  assert.ok(missing.structuredContent.findings.some(item => item.code === 'AE_THREAD_REQUIRED'));
-  assert.doesNotMatch(JSON.stringify(missing), /emulator-5602|private-/);
+  assert.equal(result.structuredContent.host.status, 'unsupported');
+  // Another session sees none of this session's saved device.
+  recordSessionStart(state, { session_id: crypto.randomUUID(), source: 'startup' }, { pid: process.pid });
+  const other = (await request('tools/call', { name: 'diagnose_device_issues' })).result;
+  assert.equal(other.structuredContent.chatBound, true);
+  assert.equal(other.structuredContent.device.state, 'unassigned');
+  assert.doesNotMatch(JSON.stringify(other), /emulator-5602|private-/);
   assert.equal(fs.existsSync(path.join(state, 'daemon.json')), false);
   assert.equal(fs.readFileSync(path.join(state, 'leases.json'), 'utf8'), saved);
 });
@@ -120,8 +121,9 @@ test('capture tools return labeled image samples to the agent and keep download 
   t.after(() => new Promise(resolve => server.close(resolve)));
   fs.writeFileSync(path.join(state, 'daemon.json'), JSON.stringify({ pid: process.pid, port: server.address().port }));
   fs.writeFileSync(path.join(state, 'token'), 'private-token');
+  bind(state);
   const request = client(t, state);
-  const response = (await request('tools/call', { name: 'view_or_copy_captures', arguments: { action: 'context', captureId: 'capture-id' }, _meta: { threadId: 'test-chat' } })).result;
+  const response = (await request('tools/call', { name: 'view_or_copy_captures', arguments: { action: 'context', captureId: 'capture-id' } })).result;
   assert.deepEqual(response.content.map(block => block.type), ['text', 'text', 'image', 'text', 'image']);
   assert.equal(response.content[3].text, 'Frame at 1.00s');
   assert.equal(response.structuredContent.capture.file, '/owned/video.mp4');

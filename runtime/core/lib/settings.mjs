@@ -14,6 +14,8 @@ const DEFAULTS = {
   defaultAvd: AUTOMATIC,
   keepCreatedDevices: false,
   idleMinutes: 60,
+  keepRunningAfterSessionEnd: false,
+  openPanelInBrowser: true,
   videoQuality: 'Balanced',
 };
 
@@ -53,6 +55,16 @@ export class Settings {
         minimum: 0,
         maximum: 1440,
       },
+      keepRunningAfterSessionEnd: {
+        type: 'boolean',
+        title: 'Keep emulators running after a session ends',
+        description: 'When off, a session\'s emulators stop as soon as the session ends. When on, they keep running until the idle timeout, so a resumed session can reuse them.',
+      },
+      openPanelInBrowser: {
+        type: 'boolean',
+        title: 'Open the device panel in the browser',
+        description: 'Opens the live device panel in the default browser when a session starts or pins a device.',
+      },
       videoQuality: {
         type: 'string',
         title: 'Video quality',
@@ -73,13 +85,14 @@ export class Settings {
             { kind: 'property', property: 'defaultAvd' },
             { kind: 'property', property: 'keepCreatedDevices' },
             { kind: 'property', property: 'idleMinutes' },
+            { kind: 'property', property: 'keepRunningAfterSessionEnd' },
             { kind: 'tool', tool: 'emulator_manager', title: 'Manage emulators…', description: 'Running emulators and devices across all threads.' },
           ],
         },
         {
           kind: 'group',
           title: 'Display',
-          items: [{ kind: 'property', property: 'videoQuality' }],
+          items: [{ kind: 'property', property: 'videoQuality' }, { kind: 'property', property: 'openPanelInBrowser' }],
         },
       ],
     };

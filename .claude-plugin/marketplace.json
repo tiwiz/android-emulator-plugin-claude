@@ -1,0 +1,16 @@
+{
+  "name": "tiwiz",
+  "description": "Android emulator tools for Claude Code.",
+  "owner": {
+    "name": "Roberto Orgiu",
+    "url": "https://github.com/tiwiz"
+  },
+  "plugins": [
+    {
+      "name": "android-emulator",
+      "source": "./plugins/android-emulator",
+      "description": "Run, control, and test Android emulators and connected devices from Claude Code.",
+      "category": "development"
+    }
+  ]
+}

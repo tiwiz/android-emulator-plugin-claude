@@ -1,0 +1,23 @@
+{
+  "name": "android-emulator",
+  "displayName": "Android Emulator",
+  "version": "2026.10.10",
+  "description": "Run, control, and test Android emulators and connected devices from Claude Code, with a live device panel in the browser.",
+  "author": {
+    "name": "Roberto Orgiu",
+    "url": "https://github.com/tiwiz"
+  },
+  "homepage": "https://github.com/tiwiz/android-emulator-plugin-claude",
+  "repository": "https://github.com/tiwiz/android-emulator-plugin-claude",
+  "license": "Apache-2.0",
+  "keywords": [
+    "android",
+    "emulator",
+    "avd",
+    "adb",
+    "mobile",
+    "testing"
+  ],
+  "icon": "./assets/logo.svg",
+  "supportUrl": "https://github.com/tiwiz/android-emulator-plugin-claude/issues"
+}

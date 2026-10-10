@@ -1,0 +1,13 @@
+#!/bin/sh
+# Runs the given script with Node.js 20 or newer from PATH.
+set -eu
+
+PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH
+
+if node_path=$(command -v node 2>/dev/null); then
+  exec "$node_path" "$@"
+fi
+
+printf '%s\n' 'Android Emulator could not find Node.js 20 or newer. Install Node.js and restart Claude Code.' >&2
+exit 127
