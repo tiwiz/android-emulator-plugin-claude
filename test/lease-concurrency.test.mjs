@@ -76,3 +76,18 @@ test('physical pins survive idle cleanup and are released when their owner is ar
   assert.equal(leases.get('phone-b').serial, 'usb-b');
   await leases.stop('phone-b');
 });
+
+test('an ended session releases its devices unless running emulators are kept until idle', async () => {
+  const leases = manager();
+  leases.attach('phone-a', { serial: 'usb-a', label: 'Phone A' });
+  leases.leases['emulator-a'] = { threadId: 'emulator-a', kind: 'emulator', avd: 'Pixel_10', serial: 'emulator-5600', pid: process.pid, state: 'ready', startedAt: new Date().toISOString(), readyAt: new Date().toISOString() };
+  const stopped = [];
+  const stop = leases.stop.bind(leases);
+  leases.stop = async id => { stopped.push(id); if (id === 'emulator-a') { delete leases.leases[id]; return; } return stop(id); };
+  leases.readSessions = async ids => new Map([...ids].map(id => [id, { state: 'ended' }]));
+  await leases.sweep({ idleMs: 60_000, isWatched: () => false, keepEnded: true });
+  assert.deepEqual(stopped, ['phone-a'], 'a physical pin is released as soon as its session ends');
+  assert.equal(leases.get('emulator-a').serial, 'emulator-5600');
+  await leases.sweep({ idleMs: 60_000, isWatched: () => false, keepEnded: false });
+  assert.deepEqual(stopped, ['phone-a', 'emulator-a']);
+});

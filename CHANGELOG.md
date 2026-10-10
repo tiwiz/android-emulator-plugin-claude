@@ -7,6 +7,69 @@ Historical dates below are Git committer dates in UTC, not release publication
 dates. Versions 2026.10.7 and 2026.10.8 describe development source history; neither
 had a published GitHub release. Available history starts at this repository's
 initial commit; no history from a retired or separate repository is inferred.
+Entries up to 2026.10.9 describe the upstream Codex plugin by Matt McKenna, whose
+history this repository contains. 2026.10.10 is the first Claude Code version and
+has not been published as a release.
+
+## [2026.10.10]
+
+Port of the plugin from Codex desktop to Claude Code. The shared runtime, device
+features and panel UI are unchanged except where noted.
+
+### Breaking changes
+
+- The plugin targets Claude Code only. The Codex manifest, Codex host
+  integration (embedded MCP Apps panel, Codex thread and theme lookup, Codex
+  log diagnostics) and the Codex marketplace file were removed.
+- The installable plugin moved to `plugins/android-emulator/` and is named
+  `android-emulator`. Its MCP server is `emu`, so tools appear as
+  `mcp__plugin_android-emulator_emu__<tool>`.
+- Helper state lives in a new directory (`~/Library/Application Support/Android
+  Emulator for Claude Code` on macOS, `$XDG_STATE_HOME/android-emulator-claude-code`
+  on Linux) and the helper listens on port 47660. Codex plugin state, settings and
+  AVD ownership records are not migrated.
+
+### Added
+
+- Claude Code plugin manifest, marketplace file and `.mcp.json` launched
+  through `${CLAUDE_PLUGIN_ROOT}`.
+- SessionStart and SessionEnd hooks that bind each Claude Code session to its
+  devices. `/clear` and compaction keep the session's devices; `--resume`
+  reuses them when they are still running; a fork starts with none.
+- The device panel opens in the default browser on startup, pinning and
+  explicit requests, and every panel result includes its local URL.
+- `keepRunningAfterSessionEnd` setting (default off): when a session ends its
+  emulators stop immediately; when on, they keep running until the idle timeout.
+- `openPanelInBrowser` setting (default on).
+- Agent-callable `show_device_manager`, `read_plugin_settings` and
+  `update_plugin_settings` tools, plus `/android-emulator:panel`,
+  `/android-emulator:manager` and `/android-emulator:settings` commands.
+- The panel follows the Claude Code light or dark theme.
+
+### Changed
+
+- Ended sessions are a new lifecycle state in the shared runtime: physical pins
+  are released at once, and running emulators follow the new setting. A
+  session's Claude Code process exiting without SessionEnd also ends it.
+- A running helper can be asked to clean up ended sessions immediately.
+- Structured tool results are repeated as JSON in the text Claude reads.
+- Settings stay readable before the Android SDK is installed.
+- The setup and emulator skills describe the browser panel, session lifecycle
+  and permission allowlist for Claude Code.
+- Packaging validates the Claude Code bundle (hooks, commands, tool name
+  lengths, `${CLAUDE_PLUGIN_ROOT}` references, no top-level `bin/`) instead of
+  OpenAI listing metadata.
+
+### Removed
+
+- The Codex documentation screenshots, the APK file viewer, composer
+  @-mentions and the panel's **Add to chat** action, which have no Claude Code
+  equivalent.
+
+### Requirements
+
+- Claude Code with plugin and hook support, and Node.js 20 or newer on `PATH`.
+- The panel needs a browser with WebCodecs support, on the same machine.
 
 ## [2026.10.9]
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
 import { compareVersions } from '../runtime/core/lib/sdk.mjs';
-import { helperVersion } from '../runtime/hosts/codex/config.mjs';
+import { helperVersion } from '../runtime/hosts/claude/config.mjs';
 
 test('upgrade retries when an older chat wins the helper port, and never replaces a newer helper', async () => {
   const source = fs.readFileSync(new URL('../runtime/mcp/helper-client.mjs', import.meta.url), 'utf8');

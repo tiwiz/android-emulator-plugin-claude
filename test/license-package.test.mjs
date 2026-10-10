@@ -4,7 +4,7 @@ import test from 'node:test';
 import { iconFor } from '../runtime/core/tools.mjs';
 
 const repository = new URL('../', import.meta.url);
-const plugin = new URL('plugins/android-emulator-plugin/', repository);
+const plugin = new URL('plugins/android-emulator/', repository);
 
 test('installable plugin and retained runtime include first-party license and notices', () => {
   for (const file of ['LICENSE', 'NOTICE']) {
@@ -14,7 +14,7 @@ test('installable plugin and retained runtime include first-party license and no
     }
   }
   for (const root of [repository, new URL('runtime/core/', repository), plugin]) {
-    const manifest = root === plugin ? '.codex-plugin/plugin.json' : 'package.json';
+    const manifest = root === plugin ? '.claude-plugin/plugin.json' : 'package.json';
     assert.equal(JSON.parse(fs.readFileSync(new URL(manifest, root))).license, 'Apache-2.0');
   }
 });

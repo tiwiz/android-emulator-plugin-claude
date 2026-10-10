@@ -5,7 +5,6 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 import { startDaemon } from '../runtime/core/daemon.mjs';
-import { panelMetadata } from '../runtime/hosts/codex/tools.mjs';
 import { Captures } from '../runtime/core/lib/captures.mjs';
 
 class Leases extends EventEmitter {
@@ -29,7 +28,7 @@ async function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'multi-device-'));
   const leases = new Leases(); const inputs = []; const mirrors = [];
   const state = { devices: [{ serial: 'usb-phone', label: 'Connected Pixel', hardwareId: 'hardware-one', state: 'device' }], key: null };
-  const service = await startDaemon({ dir, panelMetadata, createLeases: () => leases,
+  const service = await startDaemon({ dir, createLeases: () => leases,
     createConnectedDevices: () => ({ list: async () => state.devices }),
     readSessions: async ids => new Map(ids.map(id => [id, { title: `Chat ${id}`, state: 'active', cwd: '/project' }])),
     providers: {

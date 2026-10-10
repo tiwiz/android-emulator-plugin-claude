@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { retainRuntime } from '../runtime/mcp/runtime-copy.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const plugin = path.join(repo, 'plugins', 'android-emulator-plugin');
+const plugin = path.join(repo, 'plugins', 'android-emulator');
 const runtimeCopyModule = pathToFileURL(path.join(plugin, 'runtime', 'mcp', 'runtime-copy.mjs')).href;
 
 function fixture(root) {
@@ -80,7 +80,7 @@ test('retainRuntime preserves a complete helper bundle after its throwaway sourc
   for (const relative of [
     'LICENSE',
     'NOTICE',
-    'hosts/codex/daemon.mjs',
+    'hosts/claude/daemon.mjs',
     'core/lib/device.mjs',
     'core/web/index.html',
     'core/web/app.js',
@@ -100,11 +100,11 @@ test('retainRuntime preserves a complete helper bundle after its throwaway sourc
   assert.match(retainedApp, /function/);
 
   const port = await freePort();
-  const child = spawn(process.execPath, [path.join(retained, 'hosts', 'codex', 'daemon.mjs')], {
+  const child = spawn(process.execPath, [path.join(retained, 'hosts', 'claude', 'daemon.mjs')], {
     env: {
       ...process.env,
-      EMULATOR_FOR_CODEX_STATE_DIR: state,
-      EMULATOR_FOR_CODEX_PORT: String(port),
+      ANDROID_EMULATOR_CLAUDE_STATE_DIR: state,
+      ANDROID_EMULATOR_CLAUDE_PORT: String(port),
     },
     stdio: ['ignore', 'ignore', 'ignore'],
   });

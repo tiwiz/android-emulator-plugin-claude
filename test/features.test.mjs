@@ -5,11 +5,15 @@ import path from 'node:path';
 import test from 'node:test';
 import { parseBadging, parseSnapshotList } from '../runtime/core/lib/device.mjs';
 import { Settings } from '../runtime/core/lib/settings.mjs';
-import { TOOLS } from '../runtime/hosts/codex/tools.mjs';
+import { TOOLS } from '../runtime/hosts/claude/tools.mjs';
+import { TOOLS as SHARED_TOOLS } from '../runtime/core/tools.mjs';
 
 test('settings validate values, persist, and fall back when the default device is gone', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aep-settings-'));
   const settings = new Settings(dir);
+  assert.equal(settings.get('keepRunningAfterSessionEnd'), false, 'emulators stop with their session by default');
+  assert.equal(settings.get('openPanelInBrowser'), true);
+  assert.throws(() => settings.update({ keepRunningAfterSessionEnd: 'yes' }), /boolean/);
   assert.throws(() => settings.update({ idleMinutes: -5 }), /0 to 1440/);
   assert.throws(() => settings.update({ videoQuality: 'Ultra' }), /videoQuality/);
   assert.throws(() => settings.update({ bogus: true }), /Unknown setting/);
@@ -48,18 +52,25 @@ test('snapshot list keeps only loadable snapshots', () => {
   assert.deepEqual(parseSnapshotList('List of snapshots present on all disks:\r\nNone\r\n'), []);
 });
 
-test('Codex entrypoints declare a ui:// resource, a title, and a theme-aware icon', () => {
-  const entrypoints = TOOLS.filter((tool) => tool._meta?.['openai/ui']?.entrypoints);
-  assert.deepEqual(entrypoints.map((tool) => tool._meta['openai/ui'].entrypoints[0].type).sort(), ['file', 'global', 'thread']);
-  for (const tool of entrypoints) {
-    assert.match(tool._meta.ui.resourceUri, /^ui:\/\//, tool.name);
+test('shared tools keep a title and a theme-aware icon; Claude Code tools fit its name limit without host UI metadata', () => {
+  for (const tool of SHARED_TOOLS) {
     assert.ok(tool.title, tool.name);
-    const svg = Buffer.from(tool.icons[0].src.split(',')[1], 'base64').toString();
-    assert.match(svg, /viewBox="0 0 20 20"/);
-    assert.match(svg, /currentColor/);
+    const svg = Buffer.from(tool.icons?.[0]?.src.split(',')[1] ?? '', 'base64').toString();
+    if (tool.icons) {
+      assert.match(svg, /viewBox="0 0 20 20"/);
+      assert.match(svg, /currentColor/);
+    }
   }
-  const hidden = TOOLS.filter((tool) => tool._meta?.ui?.visibility?.includes('app') && !tool._meta.ui.visibility.includes('model')).map((tool) => tool.name);
-  assert.ok(['settings_read', 'settings_update', 'emulator_mentions'].every((name) => hidden.includes(name)));
+  for (const tool of TOOLS) {
+    assert.ok(`mcp__plugin_android-emulator_emu__${tool.name}`.length <= 64, tool.name);
+    assert.equal(tool._meta, undefined, tool.name);
+    assert.doesNotMatch(JSON.stringify(tool), /\bemulator_[a-z_]+\b|\bsettings_(?:read|update)\b/, tool.name);
+  }
+  const names = TOOLS.map(tool => tool.name);
+  assert.ok(['read_plugin_settings', 'update_plugin_settings', 'show_device_manager'].every(name => names.includes(name)));
+  assert.ok(!names.some(name => ['emulator_stream', 'emulator_apk', 'emulator_mentions'].includes(name)));
+  const update = TOOLS.find(tool => tool.name === 'update_plugin_settings');
+  assert.deepEqual(update.inputSchema.properties.set.properties.keepRunningAfterSessionEnd, { type: 'boolean' });
 });
 
 test('agent interaction tools expose bounded waits and long presses', () => {

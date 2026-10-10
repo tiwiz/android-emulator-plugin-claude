@@ -381,6 +381,8 @@ export const TOOLS = [
             defaultAvd: { type: 'string' },
             keepCreatedDevices: { type: 'boolean' },
             idleMinutes: { type: 'integer', minimum: 0, maximum: 1440 },
+            keepRunningAfterSessionEnd: { type: 'boolean' },
+            openPanelInBrowser: { type: 'boolean' },
             videoQuality: { type: 'string', enum: ['Data saver', 'Balanced', 'High'] },
           },
           minProperties: 1,

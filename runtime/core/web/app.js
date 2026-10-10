@@ -1925,7 +1925,7 @@ function ensureDeviceFrame(device) {
     const bootstrap = document.createElement('script');
     bootstrap.textContent = `globalThis.emulatorHost = parent.__emulatorDeviceHost(${JSON.stringify(device.id).replaceAll('<', '\\u003c')});`;
     template.querySelector('script[type="module"]').before(bootstrap);
-    // Codex permits explicitly declared blob frames, but blocks srcdoc frames.
+    // Embedded MCP Apps hosts may permit declared blob frames while blocking srcdoc frames.
     // The document and scripts stay local and inherit the panel's origin/CSP.
     entry.documentUrl = URL.createObjectURL(new Blob(['<!doctype html>\n' + template.outerHTML], { type: 'text/html' }));
     frame.src = entry.documentUrl;
