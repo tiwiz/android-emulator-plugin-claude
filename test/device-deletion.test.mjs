@@ -91,6 +91,17 @@ test('deletion refuses external, leased, starting and unidentified running emula
   assert.equal(leases.deletingAvds.size, 0);
 });
 
+test('a pinned phone does not mark an AVD with its model name as in use', async () => {
+  device('Pixel_8');
+  const leases = manager();
+  leases.devices = async () => [];
+  leases.leases.phone = { threadId: 'phone', kind: 'physical', serial: '35121FDJH000AQ', avd: 'Pixel_8', label: 'Pixel_8', state: 'ready' };
+  leases.leases.emulator = { threadId: 'emulator', avd: 'Busy', pid: process.pid, readOnly: true };
+  const inUse = await leases.inUseAvds();
+  assert.equal(inUse.has('Pixel_8'), false);
+  assert.equal(inUse.has('Busy'), true);
+});
+
 test('a pending deletion prevents a new start; a start reservation blocks deletion after the ADB check', async () => {
   const location = device('Racing');
   const leases = manager();
