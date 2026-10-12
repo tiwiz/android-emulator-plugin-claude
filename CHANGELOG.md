@@ -59,6 +59,9 @@ features and panel UI are unchanged except where noted.
 - Packaging validates the Claude Code bundle (hooks, commands, tool name
   lengths, `${CLAUDE_PLUGIN_ROOT}` references, no top-level `bin/`) instead of
   OpenAI listing metadata.
+- On Windows, the helper, emulator, adb, logcat, recording, mirroring and
+  navigation processes start without a console window. Previously each adb call
+  from the detached helper flashed a new terminal window.
 
 ### Removed
 

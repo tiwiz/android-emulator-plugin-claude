@@ -178,7 +178,7 @@ export class Mirror extends EventEmitter {
     this.process = spawn(
       sdk().adb,
       ['-s', this.serial, 'shell', `CLASSPATH=${DEVICE_JAR}`, 'app_process', '/', 'com.genymobile.scrcpy.Server', ...serverArgs],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
     );
     const serverOutput = (chunk) => this.log(`[scrcpy ${this.serial}] ${chunk.toString().trim()}`);
     this.process.stdout.on('data', serverOutput);

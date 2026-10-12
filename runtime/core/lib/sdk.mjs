@@ -51,7 +51,7 @@ export function requireEmulator() {
 // Runs a process without a shell and resolves with its exit status and output.
 export function run(file, args, { timeoutMs = 30_000, binary = false, maxBytes = 64 * 1024 * 1024 } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const stdout = [];
     const stderr = [];
     let bytes = 0;

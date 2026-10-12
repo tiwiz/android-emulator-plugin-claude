@@ -23,7 +23,7 @@ export class Recorder {
     if (this.active.has(serial)) throw new Error('Already recording this emulator.');
     // screenrecord stops by itself after its 3-minute limit.
     const deviceFile = `/sdcard/android-emulator-${crypto.randomUUID()}.mp4`;
-    const child = this.spawnProcess(this.adbPath(), ['-s', serial, 'shell', 'screenrecord', '--bit-rate', '8000000', deviceFile], { stdio: 'ignore' });
+    const child = this.spawnProcess(this.adbPath(), ['-s', serial, 'shell', 'screenrecord', '--bit-rate', '8000000', deviceFile], { stdio: 'ignore', windowsHide: true });
     const entry = { child, threadId, deviceFile, startedAt: Date.now() };
     entry.closed = new Promise(resolve => {
       child.once('error', error => { entry.error = error; resolve(); });
