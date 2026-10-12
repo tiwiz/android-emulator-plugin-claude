@@ -47,7 +47,7 @@ export function createHelperClient({ dir, daemonFile, helperVersion }) {
         for (let attempt = 0; attempt < 30 && (await healthy(info)); attempt += 1) await sleep(100);
       }
       const logFd = fs.openSync(path.join(dir, 'daemon.log'), 'a');
-      const child = spawn(process.execPath, [daemonFile], { detached: true, stdio: ['ignore', logFd, logFd] });
+      const child = spawn(process.execPath, [daemonFile], { detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
       fs.closeSync(logFd);
       child.unref();
       for (let attempt = 0; attempt < 50; attempt += 1) {

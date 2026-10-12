@@ -265,7 +265,7 @@ export class LeaseManager extends EventEmitter {
 
       const logFile = path.join(this.logDir, `${serial}.log`);
       const logFd = fs.openSync(logFile, 'w');
-      const child = spawn(executable, args, { detached: true, stdio: ['ignore', logFd, logFd] });
+      const child = spawn(executable, args, { detached: true, stdio: ['ignore', logFd, logFd], windowsHide: true });
       fs.closeSync(logFd);
       child.unref();
       this.log(`thread ${threadId} launching ${avd} as ${serial} pid ${child.pid}${ephemeral ? ' read-only' : ''}`);

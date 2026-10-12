@@ -100,7 +100,7 @@ async function terminateTree(child) {
 export function runMinimap(file, args, { cwd, env = process.env, signal, timeoutMs = 90_000 } = {}) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new Error('Navigation stopped. Inspect the device before continuing; completed actions are not undone.'));
-    const child = spawn(file, args, { cwd, env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(file, args, { cwd, env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const chunks = [];
     let bytes = 0, failure = null, stopping;
     const stop = message => {

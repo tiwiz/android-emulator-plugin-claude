@@ -46,8 +46,12 @@ test('package checks reject a top-level bin/, escaping paths, unknown hooks and 
   config.hooks.PreToolUse = config.hooks.SessionStart;
   hooks.set('hooks/hooks.json', { bytes: Buffer.from(JSON.stringify(config)), mode: 0o100644 });
   assert.throws(() => validatePackage(hooks, original), /session lifecycle/);
-  const missingLauncher = packageFiles(); missingLauncher.delete('scripts/launch-node');
-  assert.throws(() => validatePackage(missingLauncher, original), /Missing referenced file/);
+  const missingHook = packageFiles(); missingHook.delete('runtime/hosts/claude/hook.mjs');
+  assert.throws(() => validatePackage(missingHook, original), /Missing referenced file/);
+  const launcher = packageFiles(); const mcp = JSON.parse(launcher.get('.mcp.json').bytes);
+  mcp.mcpServers.emu.command = '${CLAUDE_PLUGIN_ROOT}/scripts/launch-node';
+  launcher.set('.mcp.json', { bytes: Buffer.from(JSON.stringify(mcp)), mode: 0o100644 });
+  assert.throws(() => validatePackage(launcher, original), /node/);
 });
 
 test('deterministic standard ZIP retains bytes/executable mode and rejects corruption and traversal', () => {

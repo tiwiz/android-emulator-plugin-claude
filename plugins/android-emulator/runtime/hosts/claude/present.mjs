@@ -5,10 +5,11 @@ import { PANEL_TOOLS } from './tools.mjs';
 
 export function openInBrowser(url, { platform = process.platform, launch = spawn } = {}) {
   if (process.env.CLAUDE_CODE_REMOTE === 'true' || !/^http:\/\/127\.0\.0\.1:\d+\//.test(url)) return false;
-  const command = platform === 'darwin' ? 'open' : platform === 'linux' ? 'xdg-open' : null;
+  // rundll32 opens the URL without cmd.exe, which would split it at `&`.
+  const [command, ...prefix] = { darwin: ['open'], linux: ['xdg-open'], win32: ['rundll32', 'url.dll,FileProtocolHandler'] }[platform] ?? [];
   if (!command) return false;
   try {
-    const child = launch(command, [url], { detached: true, stdio: 'ignore' });
+    const child = launch(command, [...prefix, url], { detached: true, stdio: 'ignore', windowsHide: true });
     child.on?.('error', () => {});
     child.unref?.();
     return true;

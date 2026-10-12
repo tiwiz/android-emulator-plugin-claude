@@ -94,7 +94,8 @@ export function validatePackage(files, original) {
   }
   const mcp = parse(files, '.mcp.json'); const servers = Object.entries(mcp.mcpServers);
   assert.equal(servers.length, 1); assert.equal(servers[0][0], 'emu');
-  const server = servers[0][1]; rootReference(server.command, files);
+  // Node from PATH runs on every platform; shell launchers do not start on Windows.
+  const server = servers[0][1]; assert.equal(server.command, 'node', 'The MCP server must start through node');
   for (const arg of server.args ?? []) rootReference(arg, files);
   assert.deepEqual(mcp, JSON.parse(committedBytes(`${sourceDirectory}.mcp.json`)), 'MCP behavior must stay intact');
   const hooks = parse(files, 'hooks/hooks.json').hooks;
@@ -102,6 +103,7 @@ export function validatePackage(files, original) {
   for (const handlers of Object.values(hooks)) for (const hook of handlers.flatMap(entry => entry.hooks)) {
     assert.equal(hook.type, 'command');
     for (const reference of hook.command.match(/\$\{CLAUDE_PLUGIN_ROOT\}\/[^"\s]+/g) ?? []) rootReference(reference, files);
+    assert(/^node "\$\{CLAUDE_PLUGIN_ROOT\}\//.test(hook.command), 'Hooks must start through node');
     assert(Number.isInteger(hook.timeout) && hook.timeout <= 60, 'Hooks need a bounded timeout');
   }
   const skills = [...files.keys()].filter(p => /^skills\/[^/]+\/SKILL\.md$/.test(p)); assert(skills.length > 0);

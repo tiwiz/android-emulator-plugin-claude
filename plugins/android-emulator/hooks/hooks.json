@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/launch-node\" \"${CLAUDE_PLUGIN_ROOT}/runtime/hosts/claude/hook.mjs\" session-start",
-            "timeout": 10
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/runtime/hosts/claude/hook.mjs\" session-start",
+            "timeout": 15
           }
         ]
       }
@@ -16,8 +16,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/launch-node\" \"${CLAUDE_PLUGIN_ROOT}/runtime/hosts/claude/hook.mjs\" session-end",
-            "timeout": 5
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/runtime/hosts/claude/hook.mjs\" session-end",
+            "timeout": 10
           }
         ]
       }

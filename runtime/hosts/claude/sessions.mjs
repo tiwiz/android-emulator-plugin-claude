@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'fish', 'ksh', 'tcsh', 'csh', 'launch-node']);
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'fish', 'ksh', 'tcsh', 'csh', 'cmd', 'powershell', 'pwsh']);
 // Session switches inside one process are followed by SessionStart; only real exits end a chat.
 const CONTINUING = new Set(['clear', 'resume']);
 const TITLE_BYTES = 256 * 1024;
@@ -33,6 +33,29 @@ export function processAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; }
 }
 
+// Windows has no /proc and Git Bash's ps lacks -o. One CIM query lists every process, so a
+// whole ancestor walk costs a single PowerShell start.
+export function parseWindowsProcesses(text) {
+  const table = new Map();
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.+)$/);
+    if (match) table.set(Number(match[1]), { ppid: Number(match[2]), name: match[3] });
+  }
+  return table;
+}
+
+function windowsParents() {
+  let table;
+  return pid => {
+    try {
+      table ??= parseWindowsProcesses(execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.ParentProcessId) $($_.Name)" }'],
+      { encoding: 'utf8', timeout: 8_000, windowsHide: true }));
+    } catch { table = new Map(); }
+    return table.get(pid) ?? null;
+  };
+}
+
 function parentOf(pid) {
   if (process.platform === 'linux') {
     try {
@@ -50,12 +73,12 @@ function parentOf(pid) {
 
 // The Claude Code process is the nearest ancestor that is not a shell wrapper. Hooks may run
 // through `sh -c` while stdio MCP servers are spawned directly, so both resolve the same PID.
-export function hostPid(start = process.pid, { parent = parentOf } = {}) {
-  let pid = parent(start)?.ppid;
+export function hostPid(start = process.pid, { parent = process.platform === 'win32' ? windowsParents() : parentOf } = {}) {
+  let pid = parent(start)?.ppid ?? (start === process.pid ? process.ppid : undefined);
   for (let depth = 0; depth < 6 && pid > 1; depth += 1) {
     const info = parent(pid);
     if (!info) return pid;
-    if (!SHELLS.has(info.name.replace(/^-/, ''))) return pid;
+    if (!SHELLS.has(info.name.toLowerCase().replace(/^-/, '').replace(/\.exe$/, ''))) return pid;
     pid = info.ppid;
   }
   return null;

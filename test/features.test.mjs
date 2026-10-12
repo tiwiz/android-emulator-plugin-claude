@@ -110,3 +110,10 @@ test('helper versions compare numerically so an older chat never replaces a newe
   assert.equal(compareVersions('0.6.0', '0.6.0'), 0);
   assert.ok(compareVersions(undefined, '0.6.0') < 0);
 });
+
+test('SDK executables carry the platform suffix', async () => {
+  const { executableName } = await import('../runtime/core/lib/sdk.mjs');
+  assert.equal(executableName('adb', 'win32'), 'adb.exe');
+  assert.equal(executableName('adb', 'darwin'), 'adb');
+  assert.equal(executableName('emulator', 'linux'), 'emulator');
+});

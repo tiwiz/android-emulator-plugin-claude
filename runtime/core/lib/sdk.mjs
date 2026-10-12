@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+// Windows SDK tools carry an .exe suffix; macOS and Linux tools have none.
+export const executableName = (name, platform = process.platform) => (platform === 'win32' ? `${name}.exe` : name);
+
 function latestBuildTool(root, name) {
   const dir = path.join(root, 'build-tools');
   const versions = fs.existsSync(dir) ? fs.readdirSync(dir).filter((version) => fs.existsSync(path.join(dir, version, name))) : [];
@@ -19,8 +22,11 @@ export function sdk() {
     process.env.ANDROID_SDK_ROOT,
     path.join(os.homedir(), 'Library', 'Android', 'sdk'),
     path.join(os.homedir(), 'Android', 'Sdk'),
+    ...(process.platform === 'win32' ? [path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'), 'Android', 'Sdk')] : []),
   ].filter(Boolean);
-  const root = candidates.find((candidate) => fs.existsSync(path.join(candidate, 'platform-tools', 'adb')));
+  const adb = executableName('adb');
+  const emulator = executableName('emulator');
+  const root = candidates.find((candidate) => fs.existsSync(path.join(candidate, 'platform-tools', adb)));
   if (!root) {
     throw new Error(
       `Android SDK Platform Tools not found. Checked: ${candidates.join(', ')}. ` +
@@ -29,9 +35,9 @@ export function sdk() {
   }
   cachedSdk = {
     root,
-    adb: path.join(root, 'platform-tools', 'adb'),
-    emulator: fs.existsSync(path.join(root, 'emulator', 'emulator')) ? path.join(root, 'emulator', 'emulator') : null,
-    aapt2: latestBuildTool(root, 'aapt2'),
+    adb: path.join(root, 'platform-tools', adb),
+    emulator: fs.existsSync(path.join(root, 'emulator', emulator)) ? path.join(root, 'emulator', emulator) : null,
+    aapt2: latestBuildTool(root, executableName('aapt2')),
   };
   return cachedSdk;
 }
@@ -45,7 +51,7 @@ export function requireEmulator() {
 // Runs a process without a shell and resolves with its exit status and output.
 export function run(file, args, { timeoutMs = 30_000, binary = false, maxBytes = 64 * 1024 * 1024 } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     const stdout = [];
     const stderr = [];
     let bytes = 0;

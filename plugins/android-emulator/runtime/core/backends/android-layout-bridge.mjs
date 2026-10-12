@@ -14,7 +14,7 @@ export function minimapLayout(value) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [executable, ...args] = process.argv.slice(2);
   const layout = args[0] === 'layout';
-  const child = spawn(executable, ['--no-metrics', ...args], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const child = spawn(executable, ['--no-metrics', ...args], { stdio: ['ignore', 'pipe', 'inherit'], windowsHide: true });
   const chunks = [];
   let bytes = 0, overflow = false;
   if (layout) child.stdout.on('data', chunk => {
