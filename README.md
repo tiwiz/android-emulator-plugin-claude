@@ -23,7 +23,7 @@ The device manager (`/android-emulator:manager`) lists running emulators across 
 
 Use an existing Android Virtual Device or ask Claude to create one. Set `ANDROID_HOME` if your SDK is installed in a custom location. Screen memory prepares its dependencies on first use and needs internet access for missing downloads.
 
-For a physical device, enable USB debugging, connect it, and accept Android's debugging prompt. Select it from the panel's device dropdown. Unpinning releases the connection without shutting down the phone. Rotation, simulated location/battery, fold posture, and snapshots require an emulator.
+For a physical device, enable USB debugging, connect it, and accept Android's debugging prompt. Select it from the panel's device dropdown. Unpinning releases the connection without shutting down the phone. The panel keeps mirroring while the screen is off or locked and follows the phone's own rotation. If the cable is unplugged, the pin stays with the session and mirroring resumes when the phone reconnects. Apps that block screen capture appear black. Rotation, simulated location/battery, fold posture, and snapshots require an emulator.
 
 Screen memory may download Minimap and [Google's Android CLI](https://developer.android.com/tools/agents/android-cli/download) directly from their upstream servers. The CLI launcher can download its own runtime and is invoked even during version checks. Review the applicable [Android SDK terms](https://developer.android.com/studio/terms) before first use; users handle their own agreement. To use installations you manage yourself, set `ANDROID_EMULATOR_MINIMAP` and `ANDROID_EMULATOR_ANDROID_CLI` to those executables. These tools are downloaded separately and are not included in the plugin archive.
 

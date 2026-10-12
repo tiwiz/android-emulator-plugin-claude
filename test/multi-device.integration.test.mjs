@@ -136,3 +136,21 @@ test('busy devices cannot move; disconnect keeps ownership and does not select a
   assert.equal((await call('A', 'emulator_key', { deviceId: phone.id, key: 'HOME' })).ok, false);
   assert.equal(inputs.length, 1);
 });
+
+test('a reconnected phone resumes its stream for the open panel', { timeout: 10_000 }, async t => {
+  const { call, select, state, mirrors } = await fixture(t);
+  const phone = (await call('A', 'emulator_pin', { serial: 'usb-phone' })).result.structuredContent.emulator;
+  await select('A', phone.id);
+  const channel = (await call('A', 'emulator_devices')).result.meta.panels[phone.id].channel;
+  assert.equal((await call('A', 'emulator_stream', { ...channel, session: phone.id, wait: true })).ok, true);
+  assert.equal(mirrors.length, 1);
+  const connected = state.devices;
+  state.devices = [];
+  assert.equal((await call('A', 'emulator_devices')).result.structuredContent.devices[0].state, 'disconnected');
+  assert.equal(mirrors[0].stopped, true);
+  state.devices = connected;
+  assert.equal((await call('A', 'emulator_devices')).result.structuredContent.devices[0].state, 'ready');
+  assert.equal(mirrors.length, 2);
+  assert.equal(mirrors[1].serial, 'usb-phone');
+  assert.equal(mirrors[1].stopped, undefined);
+});

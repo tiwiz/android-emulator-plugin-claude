@@ -139,7 +139,8 @@ export class LeaseManager extends EventEmitter {
     for (const name of this.reservedAvds) running.add(name);
     for (const id of Object.keys(this.leases)) {
       const lease = this.get(id);
-      if (lease) running.add(lease.avd);
+      // A connected phone's lease carries its model label, not an AVD name.
+      if (lease && lease.kind !== 'physical') running.add(lease.avd);
     }
     return running;
   }

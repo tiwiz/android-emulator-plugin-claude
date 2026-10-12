@@ -62,6 +62,11 @@ features and panel UI are unchanged except where noted.
 - On Windows, the helper, emulator, adb, logcat, recording, mirroring and
   navigation processes start without a console window. Previously each adb call
   from the detached helper flashed a new terminal window.
+- A pinned phone no longer reports its model name as an AVD in use, which
+  could mark a same-named AVD as running in the launcher and device manager.
+- The README describes connected-device mirroring with the screen off or
+  locked, physical rotation, cable reconnects and capture-protected apps, and a
+  test covers the stream resuming after a reconnect.
 
 ### Removed
 
