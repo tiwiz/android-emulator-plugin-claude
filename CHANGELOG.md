@@ -31,8 +31,8 @@ features and panel UI are unchanged except where noted.
 
 ### Added
 
-- Claude Code plugin manifest, marketplace file and `.mcp.json` launched
-  through `${CLAUDE_PLUGIN_ROOT}`.
+- Claude Code plugin manifest, marketplace file and `.mcp.json` that start
+  the server with `node` from `PATH` on macOS, Linux and Windows.
 - SessionStart and SessionEnd hooks that bind each Claude Code session to its
   devices. `/clear` and compaction keep the session's devices; `--resume`
   reuses them when they are still running; a fork starts with none.
@@ -69,6 +69,11 @@ features and panel UI are unchanged except where noted.
 ### Requirements
 
 - Claude Code with plugin and hook support, and Node.js 20 or newer on `PATH`.
+- Windows: the MCP server and hooks start with `node` directly, the SDK is
+  found in `%LOCALAPPDATA%\Android\Sdk` with `.exe` tools, session detection
+  reads the process tree through PowerShell, and the panel opens through the
+  default browser. Screen memory's managed Minimap download remains macOS and
+  Linux only.
 - The panel needs a browser with WebCodecs support, on the same machine.
 
 ## [2026.10.9]

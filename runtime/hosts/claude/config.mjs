@@ -17,7 +17,9 @@ export function stateDir() {
   const dir = process.env.ANDROID_EMULATOR_CLAUDE_STATE_DIR
     ?? (process.platform === 'darwin'
       ? path.join(os.homedir(), 'Library', 'Application Support', 'Android Emulator for Claude Code')
-      : path.join(process.env.XDG_STATE_HOME ?? path.join(os.homedir(), '.local', 'state'), 'android-emulator-claude-code'));
+      : process.platform === 'win32'
+        ? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'), 'Android Emulator for Claude Code')
+        : path.join(process.env.XDG_STATE_HOME ?? path.join(os.homedir(), '.local', 'state'), 'android-emulator-claude-code'));
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return dir;
 }

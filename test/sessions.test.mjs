@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import test from 'node:test';
-import { currentThread, hostPid, recordSessionEnd, recordSessionStart, threadStates } from '../runtime/hosts/claude/sessions.mjs';
+import { currentThread, hostPid, parseWindowsProcesses, recordSessionEnd, recordSessionStart, threadStates } from '../runtime/hosts/claude/sessions.mjs';
 
 const temporary = t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'emulator-sessions-'));
@@ -21,6 +21,15 @@ test('the Claude Code process is the nearest ancestor that is not a shell wrappe
   assert.equal(hostPid(50, { parent }), 30, 'hook run through sh -c');
   assert.equal(hostPid(60, { parent }), 30, 'MCP server spawned directly');
   assert.equal(hostPid(process.pid), process.ppid, 'the test runner is not a shell');
+});
+
+test('on Windows the process table comes from one CIM listing and .exe shells are skipped', () => {
+  const table = parseWindowsProcesses('0 0 System Idle Process\r\n4120 3010 node.exe\r\n3010 2900 bash.exe\r\n\r\n2900 1200 claude.exe\r\n5000 2900 node.exe\r\n6100 6000 node.exe\r\n6000 2950 cmd.exe\r\n2950 1200 node.exe\r\n');
+  assert.deepEqual(table.get(3010), { ppid: 2900, name: 'bash.exe' });
+  const parent = pid => table.get(pid) ?? null;
+  assert.equal(hostPid(4120, { parent }), 2900, 'hook run through Git Bash');
+  assert.equal(hostPid(5000, { parent }), 2900, 'MCP server spawned directly');
+  assert.equal(hostPid(6100, { parent }), 2950, 'a hook run through cmd.exe under npm-installed Claude Code (node.exe)');
 });
 
 test('a session keeps its chat across /clear and compaction, and ends only on exit', t => {

@@ -34,11 +34,12 @@ test('only local helper pages open, and remote sessions never launch a browser',
   const launch = (command, args) => { launched.push([command, ...args]); return { on() {}, unref() {} }; };
   assert.equal(openInBrowser(url, { platform: 'darwin', launch }), true);
   assert.equal(openInBrowser(url, { platform: 'linux', launch }), true);
-  assert.equal(openInBrowser(url, { platform: 'win32', launch }), false);
+  assert.equal(openInBrowser(url, { platform: 'win32', launch }), true);
+  assert.equal(openInBrowser(url, { platform: 'aix', launch }), false);
   assert.equal(openInBrowser('https://example.com/t/x', { platform: 'linux', launch }), false);
   process.env.CLAUDE_CODE_REMOTE = 'true';
   assert.equal(openInBrowser(url, { platform: 'linux', launch }), false);
-  assert.deepEqual(launched, [['open', url], ['xdg-open', url]]);
+  assert.deepEqual(launched, [['open', url], ['xdg-open', url], ['rundll32', 'url.dll,FileProtocolHandler', url]]);
 });
 
 test('large structured results are truncated in the mirrored text', () => {

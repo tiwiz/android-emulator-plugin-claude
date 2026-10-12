@@ -16,8 +16,9 @@ The device manager (`/android-emulator:manager`) lists running emulators across 
 
 ## Requirements
 
-- Claude Code with plugin support, on macOS or Linux, with a desktop browser that supports WebCodecs on the same machine.
-- Node.js 20 or newer on `PATH`.
+- Claude Code with plugin support, on macOS, Linux or Windows, with a desktop browser that supports WebCodecs on the same machine.
+- Node.js 20 or newer on `PATH`; the plugin starts its server and hooks with `node`.
+- On Windows, the SDK is found in `%LOCALAPPDATA%\Android\Sdk` or `ANDROID_HOME`. Screen memory's managed Minimap download supports only macOS and Linux.
 - Android SDK Platform Tools. Virtual devices also need Android SDK Emulator and a system image. Android Studio can install these through SDK Manager.
 
 Use an existing Android Virtual Device or ask Claude to create one. Set `ANDROID_HOME` if your SDK is installed in a custom location. Screen memory prepares its dependencies on first use and needs internet access for missing downloads.
